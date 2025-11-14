@@ -409,7 +409,15 @@
             try {
                 // IMPORTANT: Use the global variables provided by the canvas environment
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+                const firebaseConfig = {
+  apiKey: "AIzaSyCbKXwx3eL05_Z4U-hcYzbH7V7EKj61-K4",
+  authDomain: "my-finance-app-3cbae.firebaseapp.com",
+  projectId: "my-finance-app-3cbae",
+  storageBucket: "my-finance-app-3cbae.firebasestorage.app",
+  messagingSenderId: "586906180738",
+  appId: "1:586906180738:web:54d9f1e88dd0d3e47ba89b"
+};
+
 
                 if (Object.keys(firebaseConfig).length === 0) {
                     console.error("Firebase config is missing or invalid.");
