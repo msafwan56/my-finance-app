@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personal Finance Dashboard (RM) v2</title>
+    <title>Personal Finance Dashboard (RM) v3</title>
     <!-- Load Tailwind CSS for modern, responsive styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -55,8 +55,10 @@
         <!-- Header and User ID Display -->
         <header class="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center">
             <h1 class="text-3xl font-extrabold text-blue-900">Personal Finance Dashboard (RM)</h1>
-            <div id="user-info" class="text-sm text-gray-600 mt-2 sm:mt-0">
-                Authenticated User ID: <span id="user-id-display" class="font-mono bg-gray-200 px-2 py-1 rounded-md text-xs">Loading...</span>
+            <!-- UPDATED: Added Last Update display -->
+            <div id="user-info" class="text-sm text-gray-600 mt-2 sm:mt-0 text-right">
+                <div>Authenticated User ID: <span id="user-id-display" class="font-mono bg-gray-200 px-2 py-1 rounded-md text-xs">Loading...</span></div>
+                <div class="mt-1 text-xs">Last Update: <span id="last-updated-display" class="font-medium text-gray-800">Never</span></div>
             </div>
         </header>
 
@@ -141,7 +143,8 @@
             </div>
         </div>
 
-        <!-- Modals (Add Savings, Add Loan, Add Goal, Transaction - Kept for brevity) -->
+        <!-- Modals -->
+        
         <!-- Add Savings Modal -->
         <div id="add-savings-modal" class="fixed inset-0 z-50 hidden modal-backdrop items-center justify-center p-4">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
@@ -253,9 +256,23 @@
     <!-- Firebase and App Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, serverTimestamp, getDocs, limit, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, serverTimestamp, getDocs, limit, orderBy, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // --- START OF CONFIGURATION ---
+        // PASTE YOUR FIREBASE CONFIG KEYS HERE
+        // (This is the object you copied from the Firebase console)
+       const firebaseConfig = {
+  apiKey: "AIzaSyCbKXwx3eL05_Z4U-hcYzbH7V7EKj61-K4",
+  authDomain: "my-finance-app-3cbae.firebaseapp.com",
+  projectId: "my-finance-app-3cbae",
+  storageBucket: "my-finance-app-3cbae.firebasestorage.app",
+  messagingSenderId: "586906180738",
+  appId: "1:586906180738:web:54d9f1e88dd0d3e47ba89b"
+};
+
+        // --- END OF CONFIGURATION ---
+
 
         // Global Firebase and App Variables
         let db, auth, userId = null;
@@ -273,6 +290,8 @@
         const elements = {
             dashboardContent: document.getElementById('dashboard-content'),
             userIdDisplay: document.getElementById('user-id-display'),
+            // ADDED: Last Update Display
+            lastUpdatedDisplay: document.getElementById('last-updated-display'),
             netWorthDisplay: document.getElementById('net-worth-display'),
             totalSavingsDisplay: document.getElementById('total-savings-display'),
             totalLoansDisplay: document.getElementById('total-loans-display'),
@@ -407,20 +426,9 @@
         // --- FIREBASE INITIALIZATION AND AUTH ---
         async function initFirebase() {
             try {
-                // IMPORTANT: Use the global variables provided by the canvas environment
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                const firebaseConfig = {
-  apiKey: "AIzaSyCbKXwx3eL05_Z4U-hcYzbH7V7EKj61-K4",
-  authDomain: "my-finance-app-3cbae.firebaseapp.com",
-  projectId: "my-finance-app-3cbae",
-  storageBucket: "my-finance-app-3cbae.firebasestorage.app",
-  messagingSenderId: "586906180738",
-  appId: "1:586906180738:web:54d9f1e88dd0d3e47ba89b"
-};
-
-
-                if (Object.keys(firebaseConfig).length === 0) {
-                    console.error("Firebase config is missing or invalid.");
+                if (!firebaseConfig || !firebaseConfig.apiKey) {
+                    console.error("Firebase config is missing or invalid. Make sure you pasted it in correctly.");
+                    alert("CRITICAL ERROR: Firebase configuration is missing. The app cannot load. Please re-check the index.html file.");
                     return;
                 }
 
@@ -428,47 +436,38 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
 
-                // setLogLevel('Debug'); // Uncomment for debugging in the console
-
                 // Handle authentication automatically
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         userId = user.uid;
                         elements.userIdDisplay.textContent = userId;
                         // Start listening to data only after authentication is complete
-                        setupRealtimeListeners(appId);
+                        setupRealtimeListeners();
                         // Fetch history data before first render
                         await getPreviousSnapshot();
                     } else {
-                        // Sign in anonymously if no token is available or if user is logged out
-                        try {
-                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                                await signInWithCustomToken(auth, __initial_auth_token);
-                            } else {
-                                await signInAnonymously(auth);
-                            }
-                        } catch (error) {
-                            console.error("Authentication failed:", error);
-                            // Fallback to anonymous sign-in if custom token fails
-                            await signInAnonymously(auth);
-                        }
+                        // Sign in anonymously
+                        await signInAnonymously(auth);
                     }
                 });
 
             } catch (error) {
                 console.error("Error during Firebase initialization:", error);
+                alert("Error connecting to Firebase. Check console for details.");
             }
         }
 
         // --- DATA MANAGEMENT FUNCTIONS (CRUD) ---
 
+        // UPDATED: This is the new, correct path
         function getCollectionPath(collectionName) {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            // MANDATORY security path for private user data
-            return `/artifacts/${appId}/users/${userId}/${collectionName}`;
+            // This is the correct, simple path for a private user database.
+            // It creates a folder "users", then a folder with your unique ID,
+            // and then saves your data inside that.
+            return `users/${userId}/${collectionName}`;
         }
 
-        function setupRealtimeListeners(appId) {
+        function setupRealtimeListeners() {
             if (!db || !userId) return;
 
             // 1. Savings Accounts Listener
@@ -502,88 +501,91 @@
         // --- HISTORY AND TREND LOGIC ---
 
         function getTodayDateString() {
-            return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+            // Get current date in Malaysia (GMT+8)
+            const now = new Date();
+            const offset = now.getTimezoneOffset() * 60000;
+            const utc = now.getTime() + offset;
+            const gmt8 = utc + (3600000 * 8); // 8 hours
+            const malaysiaDate = new Date(gmt8);
+            return malaysiaDate.toISOString().slice(0, 10); // YYYY-MM-DD
         }
 
         async function saveDailySnapshot(currentSavings, currentLoans) {
             if (!db || !userId) return;
 
             const today = getTodayDateString();
-            const historyCollectionRef = collection(db, getCollectionPath('history_records'));
-            const todayQuery = query(historyCollectionRef, limit(1)); // Cannot use where on client without index
-
-            // Instead of querying by date, we will just try to add a record and rely on daily update.
-            // Since we cannot easily check for a document with a specific date without creating an index,
-            // we will simply attempt to add the record and let the data flow handle the updates.
-            // For a daily snapshot, we'll try to use the date as the document ID if possible, but Firestore best practice is auto-ID.
-            // For this environment, we'll simply let the list grow and only compare against the latest.
+            
+            // Check if we already saved today's snapshot
+            if (previousSnapshot && previousSnapshot.date === today) {
+                const diff = Math.abs(currentSavings - previousSnapshot.totalSavings) + Math.abs(currentLoans - previousSnapshot.totalLoans);
+                if (diff < 0.01) {
+                    return; // No significant change, don't update
+                }
+            }
+            
+            const todaySnapshotRef = doc(db, getCollectionPath('history_records'), today);
 
             try {
-                // We add a new record only if the last record is not today.
-                if (previousSnapshot && previousSnapshot.date === today) {
-                    // Already saved today, no need to save again
-                    return;
-                }
-
-                await addDoc(historyCollectionRef, {
+                await setDoc(todaySnapshotRef, {
                     date: today,
                     totalSavings: currentSavings,
                     totalLoans: currentLoans,
                     netWorth: currentSavings - currentLoans,
-                    createdAt: serverTimestamp()
+                    createdAt: serverTimestamp() // This will update every time
                 });
 
-                // Update previousSnapshot to today's record
-                previousSnapshot = {
-                    date: today,
-                    totalSavings: currentSavings,
-                    totalLoans: currentLoans,
-                    netWorth: currentSavings - currentLoans
-                };
+                // Update previousSnapshot to this new record if it's the first of the day
+                if (!previousSnapshot || previousSnapshot.date !== today) {
+                    // This is the first save of the day. Fetch the *actual* previous day for comparison.
+                    await getPreviousSnapshot(today);
+                }
 
             } catch (error) {
                 console.error("Error saving daily snapshot:", error);
             }
         }
 
-        async function getPreviousSnapshot() {
+        async function getPreviousSnapshot(today = getTodayDateString()) {
             if (!db || !userId) return;
 
             try {
-                // Get the most recent two records to ensure we don't compare against today's snapshot
                 const historyCollectionRef = collection(db, getCollectionPath('history_records'));
-                // Note: Firestore recommends sorting by creation time for most recent
-                const q = query(historyCollectionRef, orderBy('createdAt', 'desc'), limit(2));
+                
+                // Get the most recent record *before* today
+                const q = query(historyCollectionRef, 
+                              orderBy('date', 'desc'), 
+                              limit(2)); // Get last 2 records
+                              
                 const snapshot = await getDocs(q);
-
+                
                 const records = snapshot.docs.map(doc => doc.data());
 
-                // The first record is the *latest* (could be today).
-                // We want the *previous* day's record for trend comparison, which is the second item.
-                // If the latest record is from today, we use the second oldest record as the "previous".
-                // If only one record exists, or it's not today, we set previousSnapshot to null or the record itself.
-
-                const today = getTodayDateString();
-                const latestRecord = records[0];
-
-                if (!latestRecord) {
+                if (records.length === 0) {
                     previousSnapshot = null;
-                } else if (latestRecord.date === today) {
-                    // Latest record is today (saved by another session/update), use the second oldest if available
+                    return;
+                }
+
+                if (records[0].date === today) {
+                    // The most recent record is today, so the previous one is the second
                     previousSnapshot = records[1] || null;
                 } else {
-                    // Latest record is from a previous day, use it for comparison
-                    previousSnapshot = latestRecord;
+                    // The most recent record is from a previous day
+                    previousSnapshot = records[0] || null;
                 }
 
             } catch (error) {
                 console.error("Error fetching previous snapshot:", error);
             }
         }
-
-        function formatTrend(difference, type) {
-            if (difference === 0 || previousSnapshot === null) {
-                return '<span class="text-gray-300">Trend not yet established.</span>';
+        
+        function formatTrend(difference, type, isWhiteText = false) {
+            const baseTextColor = isWhiteText ? 'text-white opacity-80' : 'text-gray-500';
+            
+            if (previousSnapshot === null) {
+                return `<span class="${baseTextColor} text-xs">No history to compare.</span>`;
+            }
+            if (difference === 0) {
+                return `<span class="${baseTextColor} text-xs">No change since last update.</span>`;
             }
 
             let isPositiveTrend;
@@ -596,15 +598,14 @@
             }
 
             const icon = isPositiveTrend ? '▲' : '▼';
-            const colorClass = isPositiveTrend ? 'text-green-300' : 'text-red-300';
-            const interpretation = isPositiveTrend ? 'Increase' : 'Decrease';
+            const colorClass = isPositiveTrend ? (isWhiteText ? 'text-green-300' : 'text-green-500') : (isWhiteText ? 'text-red-300' : 'text-red-500');
+            const interpretation = isPositiveTrend ? (type === 'loan' ? 'Reduced' : 'Increased') : (type === 'loan' ? 'Increased' : 'Decreased');
             const trendAmount = rmFormatter.format(Math.abs(difference));
-            const iconColor = isPositiveTrend ? 'text-green-500' : 'text-red-500';
 
             return `
-                <span class="${colorClass} flex items-center">
-                    <span class="text-xl mr-1 ${iconColor}">${icon}</span>
-                    <span class="text-xs text-white opacity-80">${trendAmount} Since Last Update (${interpretation})</span>
+                <span class="${colorClass} flex items-center text-sm font-medium">
+                    <span class="text-xl mr-1">${icon}</span>
+                    <span class="text-xs">${trendAmount} (${interpretation})</span>
                 </span>
             `;
         }
@@ -617,6 +618,14 @@
             totalLoans = currentLoans.reduce((sum, item) => sum + (item.balance || 0), 0);
             const netWorth = totalSavings - totalLoans;
 
+            // **FIX 2: Update "Last Updated" timestamp**
+            const now = new Date();
+            elements.lastUpdatedDisplay.textContent = now.toLocaleString('en-MY', {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+                hour12: true
+            });
+
             // 2. Update Summary Cards
             elements.totalSavingsDisplay.textContent = rmFormatter.format(totalSavings);
             elements.totalLoansDisplay.textContent = rmFormatter.format(totalLoans);
@@ -628,7 +637,7 @@
             // 3. Render Trends
             await renderTrends(netWorth, totalSavings, totalLoans);
 
-            // 4. Save Daily Snapshot (will only run if it hasn't run today yet)
+            // 4. Save Daily Snapshot
             await saveDailySnapshot(totalSavings, totalLoans);
 
             // 5. Render Lists
@@ -638,21 +647,24 @@
         }
 
         async function renderTrends(currentNetWorth, currentSavings, currentLoans) {
-            await getPreviousSnapshot(); // Ensure we have the latest previous data
+            // Only fetch previous snapshot if it's not already loaded
+            if (previousSnapshot === null) {
+                await getPreviousSnapshot();
+            }
 
             if (previousSnapshot) {
                 const diffNW = currentNetWorth - previousSnapshot.netWorth;
                 const diffSavings = currentSavings - previousSnapshot.totalSavings;
                 const diffLoans = currentLoans - previousSnapshot.totalLoans;
 
-                // Net Worth Trend
-                elements.netWorthTrend.innerHTML = formatTrend(diffNW, 'networth');
-                // Total Savings Trend
-                elements.totalSavingsTrend.innerHTML = `<p class="text-gray-500 text-xs">Total: ${rmFormatter.format(currentSavings)}</p>` + formatTrend(diffSavings, 'savings');
-                // Total Loans Trend
-                elements.totalLoansTrend.innerHTML = `<p class="text-gray-500 text-xs">Total: ${rmFormatter.format(currentLoans)}</p>` + formatTrend(diffLoans, 'loan');
+                // Net Worth Trend (White Text)
+                elements.netWorthTrend.innerHTML = formatTrend(diffNW, 'networth', true);
+                // Total Savings Trend (Gray Text)
+                elements.totalSavingsTrend.innerHTML = formatTrend(diffSavings, 'savings', false);
+                // Total Loans Trend (Gray Text)
+                elements.totalLoansTrend.innerHTML = formatTrend(diffLoans, 'loan', false);
             } else {
-                elements.netWorthTrend.innerHTML = '<span class="text-white opacity-60">No history to compare.</span>';
+                elements.netWorthTrend.innerHTML = '<span class="text-white opacity-60 text-xs">No history to compare.</span>';
                 elements.totalSavingsTrend.innerHTML = '<span class="text-gray-500 text-xs">No history to compare.</span>';
                 elements.totalLoansTrend.innerHTML = '<span class="text-gray-500 text-xs">No history to compare.</span>';
             }
@@ -723,35 +735,29 @@
             });
         }
 
-        // --- REST OF THE CODE (Transaction Modals and Form Submissions) ---
-        // (Kept identical to original for simplicity and brevity)
+        // --- Transaction & Delete Logic ---
 
         async function updateBalance(docId, type, isDeposit, amount) {
             if (!db || !userId) return;
 
             const collectionName = type === 'savings' ? 'savings_accounts' : 'loans';
             const docRef = doc(db, getCollectionPath(collectionName), docId);
-            const fieldName = 'balance';
-
+            
             // Ensure amount is positive for calculation
             const change = parseFloat(amount);
             if (isNaN(change) || change <= 0) return;
 
             try {
-                // Determine if the change increases or decreases the balance
-                // Savings: Deposit (+) or Withdrawal (-)
-                // Loans: Payment (-) or New Debt (+)
                 let adjustment = 0;
                 if (type === 'savings') {
                     adjustment = isDeposit ? change : -change;
                 } else if (type === 'loan') {
-                    // Payment on loan reduces balance (-)
-                    // New/Increased debt increases balance (+)
                     adjustment = isDeposit ? change : -change;
                 }
 
+                // Use the 'increment' utility from Firestore
                 await updateDoc(docRef, {
-                    [fieldName]: firebase.firestore.FieldValue.increment(adjustment),
+                    balance: increment(adjustment),
                     updatedAt: serverTimestamp()
                 });
             } catch (error) {
@@ -763,7 +769,6 @@
             if (!db || !userId) return;
             const collectionName = type === 'savings' ? 'savings_accounts' : type === 'loan' ? 'loans' : 'goals';
             try {
-                // IMPORTANT: The delete confirmation in the showTransactionModal function is now a custom call to deleteItem, not a window.confirm.
                 await deleteDoc(doc(db, getCollectionPath(collectionName), docId));
                 hideModal('transaction-modal');
             } catch (error) {
@@ -798,11 +803,11 @@
             }
 
             document.getElementById('delete-btn').onclick = () => {
-                if (window.confirm(`Are you sure you want to delete ${name}? This action cannot be undone.`)) {
+                // Use a simple confirm box. This is one of the few acceptable uses.
+                if (confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) {
                      deleteItem(id, type);
                 }
             };
-
 
             updateTransactionButton(); // Update button color/text based on selected action
             showModal('transaction-modal');
@@ -856,6 +861,7 @@
                         updatedAt: serverTimestamp()
                     });
                     e.target.reset();
+                    // **FIX 3: Close modal on success**
                     hideModal('add-savings-modal');
                 } catch (error) {
                     console.error("Error adding savings account:", error);
@@ -879,6 +885,7 @@
                         updatedAt: serverTimestamp()
                     });
                     e.target.reset();
+                    // **FIX 3: Close modal on success**
                     hideModal('add-loans-modal');
                 } catch (error) {
                     console.error("Error adding loan:", error);
@@ -899,6 +906,7 @@
                         createdAt: serverTimestamp()
                     });
                     e.target.reset();
+                    // **FIX 3: Close modal on success**
                     hideModal('add-goals-modal');
                 } catch (error) {
                     console.error("Error setting goal:", error);
@@ -960,7 +968,13 @@
 
             const userQuery = `Analyze my financial situation (all amounts are in RM - Malaysian Ringgit): ${JSON.stringify(analysisData)}.`;
 
-            const apiKey = ""; // Canvas will automatically provide the key
+            // **FIX 1: Use the apiKey from the firebaseConfig object**
+            const apiKey = firebaseConfig.apiKey; 
+            if (!apiKey) {
+                elements.aiAnalysisText.textContent = "Error: API Key is missing from firebaseConfig.";
+                return;
+            }
+            
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
             const payload = {
@@ -978,6 +992,18 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
+
+                if (!response.ok) {
+                    // If response is not 200, log the error
+                    const errorData = await response.json();
+                    console.error("Gemini API Error:", errorData);
+                    elements.aiAnalysisText.textContent = `Error: ${errorData.error.message} (This usually means the API key is not enabled for 'Generative Language API'. You must enable it in your Google Cloud project.)`;
+                    
+                    elements.aiLoadingSpinner.classList.add('hidden');
+                    elements.aiBtnText.textContent = 'Get Analysis';
+                    elements.refreshAiBtn.disabled = false;
+                    return;
+                }
 
                 const result = await response.json();
                 const candidate = result.candidates?.[0];
