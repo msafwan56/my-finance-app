@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Finance Dashboard (RM) v2</title>
+    <!-- Load Tailwind CSS for modern, responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for better aesthetics */
+        :root {
+            font-family: 'Inter', sans-serif;
+        }
+        .scrollable-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        /* Custom scrollbar for aesthetics */
+        .scrollable-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .scrollable-list::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1; /* slate-300 */
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-4 sm:p-6">
+
+    <!-- 1. PIN LOCK SCREEN (Starts hidden but shown on load by JS) -->
+    <div id="pin-lock-modal" class="fixed inset-0 z-[60] bg-gray-900 flex flex-col items-center justify-center p-6 transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-8 text-center">
+            <h4 id="pin-modal-title" class="text-3xl font-bold mb-6 text-blue-700">Set Your Secure PIN</h4>
+            <p id="pin-modal-message" class="text-gray-600 mb-6">Enter a 4-digit PIN to secure your dashboard.</p>
+
+            <form id="pin-form">
+                <div class="flex justify-center space-x-3 mb-6">
+                    <input class="w-12 h-16 text-center text-2xl border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 pin-input" type="password" maxlength="1" data-index="0" required>
+                    <input class="w-12 h-16 text-center text-2xl border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 pin-input" type="password" maxlength="1" data-index="1" required>
+                    <input class="w-12 h-16 text-center text-2xl border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 pin-input" type="password" maxlength="1" data-index="2" required>
+                    <input class="w-12 h-16 text-center text-2xl border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 pin-input" type="password" maxlength="1" data-index="3" required>
+                </div>
+                <p id="pin-error-message" class="text-red-500 text-sm mb-4 hidden">Incorrect PIN. Please try again.</p>
+                <button type="submit" id="pin-submit-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-full w-full transition duration-150">Confirm</button>
+            </form>
+        </div>
+    </div>
+    <!-- End PIN Lock Screen -->
+
+    <!-- Dashboard Content (hidden until unlocked) -->
+    <div id="dashboard-content" class="opacity-0 transition-opacity duration-500">
+        <!-- Header and User ID Display -->
+        <header class="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+            <h1 class="text-3xl font-extrabold text-blue-900">Personal Finance Dashboard (RM)</h1>
+            <div id="user-info" class="text-sm text-gray-600 mt-2 sm:mt-0">
+                Authenticated User ID: <span id="user-id-display" class="font-mono bg-gray-200 px-2 py-1 rounded-md text-xs">Loading...</span>
+            </div>
+        </header>
+
+        <!-- Main Summary Cards (Updated for Trends) -->
+        <div id="summary-cards" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <!-- Net Worth Card -->
+            <div class="bg-gradient-to-r from-blue-600 to-blue-700 p-6 rounded-xl shadow-lg text-white">
+                <p class="text-sm font-semibold opacity-80">Net Worth (Total Savings - Total Loans)</p>
+                <h2 id="net-worth-display" class="text-4xl font-bold mt-1">RM 0.00</h2>
+                <div id="net-worth-trend" class="mt-2 text-sm font-medium flex items-center">
+                    <!-- Trend will be injected here -->
+                </div>
+            </div>
+            <!-- Total Savings Card -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border-t-4 border-green-500">
+                <p class="text-sm font-semibold text-gray-500">Total Savings</p>
+                <h2 id="total-savings-display" class="text-3xl font-bold text-green-600 mt-1">RM 0.00</h2>
+                <div id="total-savings-trend" class="mt-2 text-sm font-medium flex items-center">
+                    <!-- Trend will be injected here -->
+                </div>
+            </div>
+            <!-- Total Loans Card -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border-t-4 border-red-500">
+                <p class="text-sm font-semibold text-gray-500">Total Loans</p>
+                <h2 id="total-loans-display" class="text-3xl font-bold text-red-600 mt-1">RM 0.00</h2>
+                <div id="total-loans-trend" class="mt-2 text-sm font-medium flex items-center">
+                    <!-- Trend will be injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Financial Health Analysis -->
+        <div class="mb-8 p-6 bg-white rounded-xl shadow-lg">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-blue-800">AI Financial Health Analysis</h3>
+                <button id="refresh-ai-btn" class="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-2 px-4 rounded-full transition duration-150 flex items-center">
+                    <svg id="ai-loading-spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span id="ai-btn-text">Get Analysis</span>
+                </button>
+            </div>
+            <p id="ai-analysis-text" class="text-gray-700 italic">Tap "Get Analysis" to receive a personalized financial insight report based on your current data.</p>
+            <div id="ai-sources" class="text-xs text-gray-500 mt-3"></div>
+        </div>
+
+        <!-- Data Management Section (Savings, Loans, Goals) -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Savings Accounts -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border-t-4 border-gray-200">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-gray-700">Savings Accounts</h3>
+                    <button onclick="showModal('add-savings-modal')" class="text-blue-500 hover:text-blue-700 font-medium text-sm">+ Add Account</button>
+                </div>
+                <div id="savings-list" class="scrollable-list space-y-3">
+                    <!-- Savings items will be injected here -->
+                </div>
+            </div>
+
+            <!-- Loans and Debts -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border-t-4 border-gray-200">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-gray-700">Loans & Debts</h3>
+                    <button onclick="showModal('add-loans-modal')" class="text-blue-500 hover:text-blue-700 font-medium text-sm">+ Add Loan</button>
+                </div>
+                <div id="loans-list" class="scrollable-list space-y-3">
+                    <!-- Loans items will be injected here -->
+                </div>
+            </div>
+
+            <!-- Financial Goals -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border-t-4 border-gray-200">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-gray-700">Financial Goals</h3>
+                    <button onclick="showModal('add-goals-modal')" class="text-blue-500 hover:text-blue-700 font-medium text-sm">+ Add Goal</button>
+                </div>
+                <div id="goals-list" class="scrollable-list space-y-3">
+                    <!-- Goals items will be injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Modals (Add Savings, Add Loan, Add Goal, Transaction - Kept for brevity) -->
+        <!-- Add Savings Modal -->
+        <div id="add-savings-modal" class="fixed inset-0 z-50 hidden modal-backdrop items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
+                <h4 class="text-2xl font-bold mb-4">Add Savings Account</h4>
+                <form id="add-account-form">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 font-medium mb-2" for="account-name">Account Name</label>
+                        <input class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" type="text" id="account-name" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 font-medium mb-2" for="initial-balance">Initial Balance (RM)</label>
+                        <input class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" type="number" step="0.01" min="0" id="initial-balance" value="0.00" required>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="hideModal('add-savings-modal')" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded-full">Cancel</button>
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-full">Save Account</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Add Loans Modal -->
+        <div id="add-loans-modal" class="fixed inset-0 z-50 hidden modal-backdrop items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
+                <h4 class="text-2xl font-bold mb-4">Add Loan/Debt</h4>
+                <form id="add-loan-form">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 font-medium mb-2" for="loan-name">Loan Description</label>
+                        <input class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" type="text" id="loan-name" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 font-medium mb-2" for="loan-type">Loan Type</label>
+                        <select class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" id="loan-type" required>
+                            <option value="Home Loan">Home Loan</option>
+                            <option value="Hire Purchase">Hire Purchase (Car)</option>
+                            <option value="Personal Loan">Personal Loan</option>
+                            <option value="Credit Card">Credit Card</option>
+                            <option value="Other">Other Debt</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 font-medium mb-2" for="outstanding-balance">Outstanding Balance (RM)</label>
+                        <input class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" type="number" step="0.01" min="0" id="outstanding-balance" required>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="hideModal('add-loans-modal')" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded-full">Cancel</button>
+                        <button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-full">Save Loan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Add Goals Modal -->
+        <div id="add-goals-modal" class="fixed inset-0 z-50 hidden modal-backdrop items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
+                <h4 class="text-2xl font-bold mb-4">Set Financial Goal</h4>
+                <form id="add-goals-form">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 font-medium mb-2" for="goal-name">Goal Name</label>
+                        <input class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" type="text" id="goal-name" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 font-medium mb-2" for="target-amount">Target Amount (RM)</label>
+                        <input class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" type="number" step="0.01" min="0.01" id="target-amount" required>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="hideModal('add-goals-modal')" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded-full">Cancel</button>
+                        <button type="submit" class="bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-4 rounded-full">Set Goal</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Generic Transaction Modal -->
+        <div id="transaction-modal" class="fixed inset-0 z-50 hidden modal-backdrop items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
+                <h4 id="transaction-title" class="text-2xl font-bold mb-4">Transaction</h4>
+                <form id="transaction-form">
+                    <input type="hidden" id="transaction-doc-id">
+                    <input type="hidden" id="transaction-type"> <!-- 'savings' or 'loan' -->
+                    <input type="hidden" id="transaction-is-deposit"> <!-- true or false -->
+
+                    <p class="mb-4 text-gray-700">Account: <span id="transaction-account-name" class="font-semibold text-blue-600"></span></p>
+
+                    <div class="mb-4">
+                        <label class="block text-gray-700 font-medium mb-2" for="transaction-amount">Amount (RM)</label>
+                        <input class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" type="number" step="0.01" min="0.01" id="transaction-amount" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 font-medium mb-2" for="transaction-action">Action</label>
+                        <select class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" id="transaction-action" required onchange="updateTransactionButton()">
+                            <!-- Options dynamically loaded in JS -->
+                        </select>
+                    </div>
+
+                    <div class="flex justify-between mt-6">
+                        <button type="button" id="delete-btn" class="text-red-500 hover:text-red-700 font-medium text-sm p-2 rounded-full">Delete Item</button>
+                        <div class="space-x-3">
+                            <button type="button" onclick="hideModal('transaction-modal')" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded-full">Cancel</button>
+                            <button type="submit" id="execute-transaction-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-full">Execute Transaction</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Firebase and App Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, serverTimestamp, getDocs, limit, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Firebase and App Variables
+        let db, auth, userId = null;
+        let currentSavings = [];
+        let currentLoans = [];
+        let currentGoals = [];
+        let totalSavings = 0;
+        let totalLoans = 0;
+        let previousSnapshot = null; // Stores the last recorded historical data
+
+        // Constants
+        const LOCK_PIN_KEY = 'dashboard_pin';
+
+        // UI Elements
+        const elements = {
+            dashboardContent: document.getElementById('dashboard-content'),
+            userIdDisplay: document.getElementById('user-id-display'),
+            netWorthDisplay: document.getElementById('net-worth-display'),
+            totalSavingsDisplay: document.getElementById('total-savings-display'),
+            totalLoansDisplay: document.getElementById('total-loans-display'),
+            savingsList: document.getElementById('savings-list'),
+            loansList: document.getElementById('loans-list'),
+            goalsList: document.getElementById('goals-list'),
+            refreshAiBtn: document.getElementById('refresh-ai-btn'),
+            aiAnalysisText: document.getElementById('ai-analysis-text'),
+            aiSources: document.getElementById('ai-sources'),
+            aiLoadingSpinner: document.getElementById('ai-loading-spinner'),
+            aiBtnText: document.getElementById('ai-btn-text'),
+            // PIN Elements
+            pinLockModal: document.getElementById('pin-lock-modal'),
+            pinModalTitle: document.getElementById('pin-modal-title'),
+            pinModalMessage: document.getElementById('pin-modal-message'),
+            pinError: document.getElementById('pin-error-message'),
+            pinForm: document.getElementById('pin-form'),
+            pinInputs: document.querySelectorAll('.pin-input'),
+            // Trend Elements
+            netWorthTrend: document.getElementById('net-worth-trend'),
+            totalSavingsTrend: document.getElementById('total-savings-trend'),
+            totalLoansTrend: document.getElementById('total-loans-trend'),
+        };
+
+        // Helper: Currency Formatter for Malaysian Ringgit (RM)
+        const rmFormatter = new Intl.NumberFormat('en-MY', {
+            style: 'currency',
+            currency: 'MYR'
+        });
+
+        // --- PIN LOCK LOGIC ---
+
+        function setupPinInputs() {
+            elements.pinInputs.forEach((input, index) => {
+                input.addEventListener('input', (e) => {
+                    if (e.target.value.length === 1 && index < elements.pinInputs.length - 1) {
+                        elements.pinInputs[index + 1].focus();
+                    }
+                });
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Backspace' && e.target.value.length === 0 && index > 0) {
+                        elements.pinInputs[index - 1].focus();
+                    }
+                });
+            });
+        }
+
+        function getPinValue() {
+            return Array.from(elements.pinInputs).map(input => input.value).join('');
+        }
+
+        function clearPinInputs() {
+            elements.pinInputs.forEach(input => input.value = '');
+            elements.pinInputs[0].focus();
+        }
+
+        function showLockScreen() {
+            const storedPin = localStorage.getItem(LOCK_PIN_KEY);
+            elements.pinLockModal.classList.remove('hidden');
+
+            if (storedPin) {
+                elements.pinModalTitle.textContent = 'Enter PIN to Access';
+                elements.pinModalMessage.textContent = 'Please enter your 4-digit security PIN.';
+                document.getElementById('pin-submit-btn').textContent = 'Unlock Dashboard';
+            } else {
+                elements.pinModalTitle.textContent = 'Set Your Secure PIN';
+                elements.pinModalMessage.textContent = 'Set a new 4-digit PIN for first-time access.';
+                document.getElementById('pin-submit-btn').textContent = 'Set PIN and Continue';
+            }
+            clearPinInputs();
+        }
+
+        function unlockApp(pin) {
+            const storedPin = localStorage.getItem(LOCK_PIN_KEY);
+
+            if (storedPin) {
+                // Verification Mode
+                if (pin === storedPin) {
+                    elements.pinLockModal.classList.add('hidden');
+                    elements.dashboardContent.classList.remove('opacity-0');
+                    initFirebase(); // Initialize Firebase only after successful unlock
+                } else {
+                    elements.pinError.textContent = 'Incorrect PIN. Please try again.';
+                    elements.pinError.classList.remove('hidden');
+                    clearPinInputs();
+                }
+            } else {
+                // Setup Mode
+                if (pin.length === 4) {
+                    localStorage.setItem(LOCK_PIN_KEY, pin);
+                    elements.pinError.classList.add('hidden');
+                    elements.pinLockModal.classList.add('hidden');
+                    elements.dashboardContent.classList.remove('opacity-0');
+                    initFirebase(); // Initialize Firebase
+                } else {
+                    elements.pinError.textContent = 'PIN must be exactly 4 digits.';
+                    elements.pinError.classList.remove('hidden');
+                    clearPinInputs();
+                }
+            }
+        }
+
+        elements.pinForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const pin = getPinValue();
+            if (pin.length === 4) {
+                elements.pinError.classList.add('hidden');
+                unlockApp(pin);
+            } else {
+                elements.pinError.textContent = 'Please enter a 4-digit PIN.';
+                elements.pinError.classList.remove('hidden');
+            }
+        });
+
+        // --- MODAL UTILITIES ---
+        window.showModal = (id) => {
+            const modal = document.getElementById(id);
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        };
+
+        window.hideModal = (id) => {
+            const modal = document.getElementById(id);
+            if (modal) {
+                modal.classList.remove('flex');
+                modal.classList.add('hidden');
+            }
+        };
+
+        // --- FIREBASE INITIALIZATION AND AUTH ---
+        async function initFirebase() {
+            try {
+                // IMPORTANT: Use the global variables provided by the canvas environment
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+
+                if (Object.keys(firebaseConfig).length === 0) {
+                    console.error("Firebase config is missing or invalid.");
+                    return;
+                }
+
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // setLogLevel('Debug'); // Uncomment for debugging in the console
+
+                // Handle authentication automatically
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        elements.userIdDisplay.textContent = userId;
+                        // Start listening to data only after authentication is complete
+                        setupRealtimeListeners(appId);
+                        // Fetch history data before first render
+                        await getPreviousSnapshot();
+                    } else {
+                        // Sign in anonymously if no token is available or if user is logged out
+                        try {
+                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                                await signInWithCustomToken(auth, __initial_auth_token);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (error) {
+                            console.error("Authentication failed:", error);
+                            // Fallback to anonymous sign-in if custom token fails
+                            await signInAnonymously(auth);
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error("Error during Firebase initialization:", error);
+            }
+        }
+
+        // --- DATA MANAGEMENT FUNCTIONS (CRUD) ---
+
+        function getCollectionPath(collectionName) {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            // MANDATORY security path for private user data
+            return `/artifacts/${appId}/users/${userId}/${collectionName}`;
+        }
+
+        function setupRealtimeListeners(appId) {
+            if (!db || !userId) return;
+
+            // 1. Savings Accounts Listener
+            const savingsQuery = query(collection(db, getCollectionPath('savings_accounts')));
+            onSnapshot(savingsQuery, (snapshot) => {
+                currentSavings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderDashboard();
+            }, (error) => {
+                console.error("Error listening to savings:", error);
+            });
+
+            // 2. Loans Listener
+            const loansQuery = query(collection(db, getCollectionPath('loans')));
+            onSnapshot(loansQuery, (snapshot) => {
+                currentLoans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderDashboard();
+            }, (error) => {
+                console.error("Error listening to loans:", error);
+            });
+
+            // 3. Goals Listener
+            const goalsQuery = query(collection(db, getCollectionPath('goals')));
+            onSnapshot(goalsQuery, (snapshot) => {
+                currentGoals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderDashboard();
+            }, (error) => {
+                console.error("Error listening to goals:", error);
+            });
+        }
+
+        // --- HISTORY AND TREND LOGIC ---
+
+        function getTodayDateString() {
+            return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        }
+
+        async function saveDailySnapshot(currentSavings, currentLoans) {
+            if (!db || !userId) return;
+
+            const today = getTodayDateString();
+            const historyCollectionRef = collection(db, getCollectionPath('history_records'));
+            const todayQuery = query(historyCollectionRef, limit(1)); // Cannot use where on client without index
+
+            // Instead of querying by date, we will just try to add a record and rely on daily update.
+            // Since we cannot easily check for a document with a specific date without creating an index,
+            // we will simply attempt to add the record and let the data flow handle the updates.
+            // For a daily snapshot, we'll try to use the date as the document ID if possible, but Firestore best practice is auto-ID.
+            // For this environment, we'll simply let the list grow and only compare against the latest.
+
+            try {
+                // We add a new record only if the last record is not today.
+                if (previousSnapshot && previousSnapshot.date === today) {
+                    // Already saved today, no need to save again
+                    return;
+                }
+
+                await addDoc(historyCollectionRef, {
+                    date: today,
+                    totalSavings: currentSavings,
+                    totalLoans: currentLoans,
+                    netWorth: currentSavings - currentLoans,
+                    createdAt: serverTimestamp()
+                });
+
+                // Update previousSnapshot to today's record
+                previousSnapshot = {
+                    date: today,
+                    totalSavings: currentSavings,
+                    totalLoans: currentLoans,
+                    netWorth: currentSavings - currentLoans
+                };
+
+            } catch (error) {
+                console.error("Error saving daily snapshot:", error);
+            }
+        }
+
+        async function getPreviousSnapshot() {
+            if (!db || !userId) return;
+
+            try {
+                // Get the most recent two records to ensure we don't compare against today's snapshot
+                const historyCollectionRef = collection(db, getCollectionPath('history_records'));
+                // Note: Firestore recommends sorting by creation time for most recent
+                const q = query(historyCollectionRef, orderBy('createdAt', 'desc'), limit(2));
+                const snapshot = await getDocs(q);
+
+                const records = snapshot.docs.map(doc => doc.data());
+
+                // The first record is the *latest* (could be today).
+                // We want the *previous* day's record for trend comparison, which is the second item.
+                // If the latest record is from today, we use the second oldest record as the "previous".
+                // If only one record exists, or it's not today, we set previousSnapshot to null or the record itself.
+
+                const today = getTodayDateString();
+                const latestRecord = records[0];
+
+                if (!latestRecord) {
+                    previousSnapshot = null;
+                } else if (latestRecord.date === today) {
+                    // Latest record is today (saved by another session/update), use the second oldest if available
+                    previousSnapshot = records[1] || null;
+                } else {
+                    // Latest record is from a previous day, use it for comparison
+                    previousSnapshot = latestRecord;
+                }
+
+            } catch (error) {
+                console.error("Error fetching previous snapshot:", error);
+            }
+        }
+
+        function formatTrend(difference, type) {
+            if (difference === 0 || previousSnapshot === null) {
+                return '<span class="text-gray-300">Trend not yet established.</span>';
+            }
+
+            let isPositiveTrend;
+            if (type === 'loan') {
+                // Loan reduction is positive (green)
+                isPositiveTrend = difference < 0;
+            } else {
+                // Net Worth/Savings increase is positive (green)
+                isPositiveTrend = difference > 0;
+            }
+
+            const icon = isPositiveTrend ? '▲' : '▼';
+            const colorClass = isPositiveTrend ? 'text-green-300' : 'text-red-300';
+            const interpretation = isPositiveTrend ? 'Increase' : 'Decrease';
+            const trendAmount = rmFormatter.format(Math.abs(difference));
+            const iconColor = isPositiveTrend ? 'text-green-500' : 'text-red-500';
+
+            return `
+                <span class="${colorClass} flex items-center">
+                    <span class="text-xl mr-1 ${iconColor}">${icon}</span>
+                    <span class="text-xs text-white opacity-80">${trendAmount} Since Last Update (${interpretation})</span>
+                </span>
+            `;
+        }
+
+        // --- UI RENDERING ---
+
+        async function renderDashboard() {
+            // 1. Calculate Totals
+            totalSavings = currentSavings.reduce((sum, item) => sum + (item.balance || 0), 0);
+            totalLoans = currentLoans.reduce((sum, item) => sum + (item.balance || 0), 0);
+            const netWorth = totalSavings - totalLoans;
+
+            // 2. Update Summary Cards
+            elements.totalSavingsDisplay.textContent = rmFormatter.format(totalSavings);
+            elements.totalLoansDisplay.textContent = rmFormatter.format(totalLoans);
+
+            elements.netWorthDisplay.textContent = rmFormatter.format(netWorth);
+            elements.netWorthDisplay.classList.toggle('text-red-300', netWorth < 0);
+            elements.netWorthDisplay.classList.toggle('text-white', netWorth >= 0);
+
+            // 3. Render Trends
+            await renderTrends(netWorth, totalSavings, totalLoans);
+
+            // 4. Save Daily Snapshot (will only run if it hasn't run today yet)
+            await saveDailySnapshot(totalSavings, totalLoans);
+
+            // 5. Render Lists
+            renderSavings();
+            renderLoans();
+            renderGoals(totalSavings);
+        }
+
+        async function renderTrends(currentNetWorth, currentSavings, currentLoans) {
+            await getPreviousSnapshot(); // Ensure we have the latest previous data
+
+            if (previousSnapshot) {
+                const diffNW = currentNetWorth - previousSnapshot.netWorth;
+                const diffSavings = currentSavings - previousSnapshot.totalSavings;
+                const diffLoans = currentLoans - previousSnapshot.totalLoans;
+
+                // Net Worth Trend
+                elements.netWorthTrend.innerHTML = formatTrend(diffNW, 'networth');
+                // Total Savings Trend
+                elements.totalSavingsTrend.innerHTML = `<p class="text-gray-500 text-xs">Total: ${rmFormatter.format(currentSavings)}</p>` + formatTrend(diffSavings, 'savings');
+                // Total Loans Trend
+                elements.totalLoansTrend.innerHTML = `<p class="text-gray-500 text-xs">Total: ${rmFormatter.format(currentLoans)}</p>` + formatTrend(diffLoans, 'loan');
+            } else {
+                elements.netWorthTrend.innerHTML = '<span class="text-white opacity-60">No history to compare.</span>';
+                elements.totalSavingsTrend.innerHTML = '<span class="text-gray-500 text-xs">No history to compare.</span>';
+                elements.totalLoansTrend.innerHTML = '<span class="text-gray-500 text-xs">No history to compare.</span>';
+            }
+        }
+
+
+        function renderSavings() {
+            elements.savingsList.innerHTML = currentSavings.length === 0 ? '<p class="text-gray-500 italic">No savings accounts yet.</p>' : '';
+            currentSavings.forEach(item => {
+                const html = `
+                    <div class="p-4 bg-white rounded-lg border border-gray-100 shadow-sm flex justify-between items-center cursor-pointer hover:bg-gray-50" onclick="showTransactionModal('${item.id}', 'savings', '${item.name}', ${item.balance})">
+                        <div>
+                            <p class="font-medium text-gray-800">${item.name}</p>
+                            <p class="text-sm text-green-600 font-semibold">${rmFormatter.format(item.balance)}</p>
+                        </div>
+                        <div class="text-xs text-gray-400">
+                            <button class="bg-green-500 text-white px-3 py-1 rounded-full text-xs hover:bg-green-600" onclick="event.stopPropagation(); showTransactionModal('${item.id}', 'savings', '${item.name}', ${item.balance}, true)">+ Deposit</button>
+                        </div>
+                    </div>
+                `;
+                elements.savingsList.innerHTML += html;
+            });
+        }
+
+        function renderLoans() {
+            elements.loansList.innerHTML = currentLoans.length === 0 ? '<p class="text-gray-500 italic">No loans or debts yet.</p>' : '';
+            currentLoans.forEach(item => {
+                const html = `
+                    <div class="p-4 bg-white rounded-lg border border-gray-100 shadow-sm flex justify-between items-center cursor-pointer hover:bg-gray-50" onclick="showTransactionModal('${item.id}', 'loan', '${item.name} (${item.type})', ${item.balance})">
+                        <div>
+                            <p class="font-medium text-gray-800">${item.name} <span class="text-xs text-gray-500">(${item.type})</span></p>
+                            <p class="text-sm text-red-600 font-semibold">${rmFormatter.format(item.balance)}</p>
+                        </div>
+                        <div class="text-xs text-gray-400">
+                            <button class="bg-red-500 text-white px-3 py-1 rounded-full text-xs hover:bg-red-600" onclick="event.stopPropagation(); showTransactionModal('${item.id}', 'loan', '${item.name} (${item.type})', ${item.balance}, true)">- Payment</button>
+                        </div>
+                    </div>
+                `;
+                elements.loansList.innerHTML += html;
+            });
+        }
+
+        function renderGoals(currentTotal) {
+            elements.goalsList.innerHTML = currentGoals.length === 0 ? '<p class="text-gray-500 italic">No financial goals set yet.</p>' : '';
+
+            currentGoals.forEach(goal => {
+                const target = goal.targetAmount || 0;
+                const progress = Math.min(currentTotal, target);
+                const percentage = target > 0 ? (progress / target) * 100 : 0;
+                const color = percentage >= 100 ? 'bg-green-500' : 'bg-yellow-400';
+
+                const html = `
+                    <div class="p-4 bg-white rounded-lg border border-gray-100 shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <p class="font-medium text-gray-800">${goal.goalName}</p>
+                            <button class="text-gray-400 hover:text-red-500" onclick="deleteItem('${goal.id}', 'goal')">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clip-rule="evenodd" /></svg>
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">${rmFormatter.format(progress)} / ${rmFormatter.format(target)}</p>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+                            <div class="${color} h-2.5 rounded-full" style="width: ${Math.min(100, percentage)}%"></div>
+                        </div>
+                        <p class="text-xs text-gray-600 mt-1 font-medium">${percentage.toFixed(1)}% complete (based on Total Savings)</p>
+                    </div>
+                `;
+                elements.goalsList.innerHTML += html;
+            });
+        }
+
+        // --- REST OF THE CODE (Transaction Modals and Form Submissions) ---
+        // (Kept identical to original for simplicity and brevity)
+
+        async function updateBalance(docId, type, isDeposit, amount) {
+            if (!db || !userId) return;
+
+            const collectionName = type === 'savings' ? 'savings_accounts' : 'loans';
+            const docRef = doc(db, getCollectionPath(collectionName), docId);
+            const fieldName = 'balance';
+
+            // Ensure amount is positive for calculation
+            const change = parseFloat(amount);
+            if (isNaN(change) || change <= 0) return;
+
+            try {
+                // Determine if the change increases or decreases the balance
+                // Savings: Deposit (+) or Withdrawal (-)
+                // Loans: Payment (-) or New Debt (+)
+                let adjustment = 0;
+                if (type === 'savings') {
+                    adjustment = isDeposit ? change : -change;
+                } else if (type === 'loan') {
+                    // Payment on loan reduces balance (-)
+                    // New/Increased debt increases balance (+)
+                    adjustment = isDeposit ? change : -change;
+                }
+
+                await updateDoc(docRef, {
+                    [fieldName]: firebase.firestore.FieldValue.increment(adjustment),
+                    updatedAt: serverTimestamp()
+                });
+            } catch (error) {
+                console.error("Error updating balance:", error);
+            }
+        }
+
+        async function deleteItem(docId, type) {
+            if (!db || !userId) return;
+            const collectionName = type === 'savings' ? 'savings_accounts' : type === 'loan' ? 'loans' : 'goals';
+            try {
+                // IMPORTANT: The delete confirmation in the showTransactionModal function is now a custom call to deleteItem, not a window.confirm.
+                await deleteDoc(doc(db, getCollectionPath(collectionName), docId));
+                hideModal('transaction-modal');
+            } catch (error) {
+                console.error("Error deleting item:", error);
+            }
+        }
+
+        window.showTransactionModal = (id, type, name, currentBalance, isDepositClick = false) => {
+            document.getElementById('transaction-doc-id').value = id;
+            document.getElementById('transaction-type').value = type;
+            document.getElementById('transaction-account-name').textContent = name;
+            document.getElementById('transaction-amount').value = ''; // Clear previous amount
+
+            const title = type === 'savings' ? 'Manage Savings' : 'Manage Loan/Debt';
+            document.getElementById('transaction-title').textContent = title;
+
+            const actionSelect = document.getElementById('transaction-action');
+            actionSelect.innerHTML = ''; // Clear previous options
+
+            if (type === 'savings') {
+                actionSelect.innerHTML = `
+                    <option value="deposit">Deposit (Add to Balance)</option>
+                    <option value="withdrawal">Withdrawal (Subtract from Balance)</option>
+                `;
+                if (isDepositClick) actionSelect.value = 'deposit';
+            } else if (type === 'loan') {
+                 actionSelect.innerHTML = `
+                    <option value="payment">Make Payment (Reduce Balance)</option>
+                    <option value="increase">Increase Debt (Add to Balance)</option>
+                `;
+                if (isDepositClick) actionSelect.value = 'payment'; // Default to payment on button click
+            }
+
+            document.getElementById('delete-btn').onclick = () => {
+                if (window.confirm(`Are you sure you want to delete ${name}? This action cannot be undone.`)) {
+                     deleteItem(id, type);
+                }
+            };
+
+
+            updateTransactionButton(); // Update button color/text based on selected action
+            showModal('transaction-modal');
+        };
+
+        function updateTransactionButton() {
+            const action = document.getElementById('transaction-action').value;
+            const btn = document.getElementById('execute-transaction-btn');
+            const type = document.getElementById('transaction-type').value;
+
+            btn.classList.remove('bg-blue-600', 'bg-red-600', 'hover:bg-blue-700', 'hover:bg-red-700', 'bg-green-600', 'hover:bg-green-700');
+
+            if (type === 'savings') {
+                if (action === 'deposit') {
+                    btn.textContent = "Execute Deposit";
+                    btn.classList.add('bg-green-600', 'hover:bg-green-700');
+                    document.getElementById('transaction-is-deposit').value = 'true';
+                } else {
+                    btn.textContent = "Execute Withdrawal";
+                    btn.classList.add('bg-red-600', 'hover:bg-red-700');
+                    document.getElementById('transaction-is-deposit').value = 'false';
+                }
+            } else if (type === 'loan') {
+                if (action === 'payment') {
+                    btn.textContent = "Record Payment";
+                    btn.classList.add('bg-green-600', 'hover:bg-green-700');
+                    document.getElementById('transaction-is-deposit').value = 'false'; // Payment reduces loan balance
+                } else {
+                    btn.textContent = "Record Debt Increase";
+                    btn.classList.add('bg-red-600', 'hover:bg-red-700');
+                    document.getElementById('transaction-is-deposit').value = 'true'; // Increase debt increases loan balance
+                }
+            }
+        }
+        window.updateTransactionButton = updateTransactionButton; // Expose to global scope
+
+
+        // --- EVENT LISTENERS (Form Submissions) ---
+
+        document.getElementById('add-account-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('account-name').value;
+            const balance = parseFloat(document.getElementById('initial-balance').value) || 0;
+
+            if (db && userId) {
+                try {
+                    await addDoc(collection(db, getCollectionPath('savings_accounts')), {
+                        name: name,
+                        balance: balance,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                    e.target.reset();
+                    hideModal('add-savings-modal');
+                } catch (error) {
+                    console.error("Error adding savings account:", error);
+                }
+            }
+        });
+
+        document.getElementById('add-loan-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('loan-name').value;
+            const type = document.getElementById('loan-type').value;
+            const balance = parseFloat(document.getElementById('outstanding-balance').value) || 0;
+
+            if (db && userId) {
+                try {
+                    await addDoc(collection(db, getCollectionPath('loans')), {
+                        name: name,
+                        type: type,
+                        balance: balance,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                    e.target.reset();
+                    hideModal('add-loans-modal');
+                } catch (error) {
+                    console.error("Error adding loan:", error);
+                }
+            }
+        });
+
+        document.getElementById('add-goals-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const goalName = document.getElementById('goal-name').value;
+            const targetAmount = parseFloat(document.getElementById('target-amount').value) || 0;
+
+            if (db && userId) {
+                try {
+                    await addDoc(collection(db, getCollectionPath('goals')), {
+                        goalName: goalName,
+                        targetAmount: targetAmount,
+                        createdAt: serverTimestamp()
+                    });
+                    e.target.reset();
+                    hideModal('add-goals-modal');
+                } catch (error) {
+                    console.error("Error setting goal:", error);
+                }
+            }
+        });
+
+        document.getElementById('transaction-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const docId = document.getElementById('transaction-doc-id').value;
+            const type = document.getElementById('transaction-type').value;
+            const amount = document.getElementById('transaction-amount').value;
+            const action = document.getElementById('transaction-action').value;
+
+            // Determine if the action is a deposit (true) or withdrawal/payment (false)
+            let isDeposit = false;
+            if (type === 'savings') {
+                isDeposit = action === 'deposit';
+            } else if (type === 'loan') {
+                isDeposit = action === 'increase'; // Increasing debt is treated as a positive change to the loan balance
+            }
+
+            if (docId && type && amount) {
+                await updateBalance(docId, type, isDeposit, amount);
+                hideModal('transaction-modal');
+            }
+        });
+
+
+        // --- GEMINI API INTEGRATION ---
+
+        elements.refreshAiBtn.addEventListener('click', () => {
+            elements.aiAnalysisText.textContent = 'Generating analysis...';
+            elements.aiSources.innerHTML = '';
+            getAIAnalysis(currentSavings, currentLoans, currentGoals);
+        });
+
+        async function getAIAnalysis(savings, loans, goals) {
+            elements.aiLoadingSpinner.classList.remove('hidden');
+            elements.aiBtnText.textContent = 'Analyzing...';
+            elements.refreshAiBtn.disabled = true;
+
+            const netWorth = totalSavings - totalLoans;
+            const analysisData = {
+                netWorth: rmFormatter.format(netWorth),
+                totalSavings: rmFormatter.format(totalSavings),
+                totalLoans: rmFormatter.format(totalLoans),
+                savingsList: savings.map(s => `${s.name}: ${rmFormatter.format(s.balance)}`),
+                loansList: loans.map(l => `${l.name} (${l.type}): ${rmFormatter.format(l.balance)}`),
+                goals: goals.map(g => `${g.goalName} (Target: ${rmFormatter.format(g.targetAmount)})`)
+            };
+
+            const systemPrompt = `You are a friendly, objective, and expert Malaysian financial planner. Your response must be in a single, encouraging paragraph and should be based ONLY on the data provided by the user.
+
+            1. Summarize the user's Net Worth and Total Debt (in RM).
+            2. Provide 1-2 actionable, general tips based on their current situation (e.g., if net worth is negative, focus on debt reduction; if goals are set, encourage consistency).
+            3. Mention 1-2 positive findings (e.g., having savings, setting clear goals).
+            4. The tone must be encouraging and professional.`;
+
+            const userQuery = `Analyze my financial situation (all amounts are in RM - Malaysian Ringgit): ${JSON.stringify(analysisData)}.`;
+
+            const apiKey = ""; // Canvas will automatically provide the key
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                // Using Google Search grounding to ensure advice is up-to-date and relevant
+                tools: [{ "google_search": {} }],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const candidate = result.candidates?.[0];
+
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    elements.aiAnalysisText.textContent = candidate.content.parts[0].text;
+
+                    let sourcesHtml = 'Sources: ';
+                    const groundingMetadata = candidate.groundingMetadata;
+                    if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                        const sources = groundingMetadata.groundingAttributions
+                            .map((attr, index) => `<a href="${attr.web?.uri}" target="_blank" class="text-blue-500 hover:underline">${attr.web?.title || 'Source ' + (index + 1)}</a>`)
+                            .join(', ');
+                        sourcesHtml += sources;
+                    } else {
+                         sourcesHtml += 'No specific sources cited for this personalized advice.';
+                    }
+                    elements.aiSources.innerHTML = sourcesHtml;
+                } else {
+                    elements.aiAnalysisText.textContent = "Error: Could not retrieve financial analysis. Please try again.";
+                }
+
+            } catch (error) {
+                console.error("Gemini API call failed:", error);
+                elements.aiAnalysisText.textContent = "Error: Failed to connect to the analysis engine. Check your connection or try again.";
+            } finally {
+                elements.aiLoadingSpinner.classList.add('hidden');
+                elements.aiBtnText.textContent = 'Get Analysis';
+                elements.refreshAiBtn.disabled = false;
+            }
+        }
+
+        // --- Initial Setup ---
+        setupPinInputs();
+        showLockScreen(); // Start by showing the lock screen
+    </script>
+</body>
+</html>
